@@ -103,6 +103,41 @@
 
 
 
+
+使用vscode编写代码包含头文件的时候遇到如下错误
+
+> #include errors detected. Please update your includePath. Squiggles are disabled for this translation unit (/home/xin/work/DancerInFarronOS/kernal/libs/string.h).C/C++(1696)
+
+* https://blog.csdn.net/weixin_44718794/article/details/106751513
+* 此方法成功解决
+
+---
+
+### 今日完成的工作
+
+- [x] 熟悉了git的使用
+- [x] 写完了os的defination部分
+- [x] 写完了error错误码部分
+- [x] 完成了一小部分string的编写，实现的函数如下
+  * strlen
+  * strnlen
+  * memset
+  * memcpy
+  * memcmp
+
+
+
+---
+
+
+
+
+
+
+
+
+
+
 ## Day4.21
 
 * 第二天，收到板子了，打算跑清华rcore
@@ -118,6 +153,10 @@
   * 用cordcloud购买一个服务器，再利用clashy进行服务器的配置
 * 初步确定用南开实验课的ucore进行改进
   * https://nankai.gitbook.io/ucore-os-on-risc-v64/
+
+
+
+---
 
 
 
