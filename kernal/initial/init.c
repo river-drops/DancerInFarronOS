@@ -1,10 +1,10 @@
 #include<stdio.h>
 #include<string.h>
 
-int kernal_init(void) __attribute__((noreturn));
+int kernel_init(void) __attribute__((noreturn));
 
 
-int kernal_init(void){
+int kernel_init(void){
     extern char edata[],end[];
 
     memset(edata,0,end-edata);

@@ -4,14 +4,14 @@
 
     .section .text,"ax",&progits
 
-    .globl kernal_entry
-kernal_entry:
+    .globl kernel_entry
+kernel_entry:
 
     # load address
     la sp,bootstacktop
 
     #tail == riscv伪指令，作用相当于调用函数（跳转）
-    tail kernal_init
+    tail kernel_init
 
 .section .data
     # .align 2^12
