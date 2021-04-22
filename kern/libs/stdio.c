@@ -17,9 +17,9 @@ static void cputch(int c,int *cnt){
 
 //Call this function if you are already dealing with a va_list.
 //you probably want cprintf() instead.
-int vcprintf(const char *fmt, va_list ap){
-    int cnt=0;
-    vprintfmt((void*)cputch, &cnt, fmt, ap);
+int vcprintf(const char *fmt, va_list ap) {
+    int cnt = 0;
+    vprintfmt((void *)cputch, &cnt, fmt, ap);
     return cnt;
 }
 
