@@ -2,7 +2,7 @@
    See the GNU ld 'info' manual ("info ld") to learn the syntax. */
 
 OUTPUT_ARCH(riscv)
-ENTRY(kernel_entry)
+ENTRY(kern_entry)
 
 BASE_ADDRESS = 0x80200000;
 

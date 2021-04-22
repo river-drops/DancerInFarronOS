@@ -36,7 +36,7 @@ memset(void *s,char c,size_t n){
         /* code */
         *p++=c;
     }
-    
+    return s;
 #endif //__HAVE_ARCH_MEMSET
 }
 

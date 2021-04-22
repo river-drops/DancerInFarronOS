@@ -3,7 +3,7 @@ EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
 
-V		:= @
+V       := @
 
 #ifndef GCCPREFIX
 GCCPREFIX := riscv64-unknown-elf-
@@ -27,13 +27,12 @@ HOSTCFLAGS	:= -Wall -O2
 GDB		:= $(GCCPREFIX)gdb
 
 CC		:= $(GCCPREFIX)gcc -g
-
 CFLAGS  := -mcmodel=medany -std=gnu99 -Wno-unused -Werror
 CFLAGS	+= -fno-builtin -Wall -O2 -nostdinc $(DEFS)
 CFLAGS	+= -fno-stack-protector -ffunction-sections -fdata-sections
 CTYPE	:= c S
 
-LD		:= $(GCCPREFIX)ld
+LD      := $(GCCPREFIX)ld
 LDFLAGS	:= -m elf64lriscv
 LDFLAGS	+= -nostdlib --gc-sections
 
@@ -66,6 +65,8 @@ BINDIR	:= bin
 ALLOBJS	:=
 ALLDEPS	:=
 TARGETS	:=
+
+
 
 include tools/function.mk
 
@@ -216,5 +217,3 @@ tags:
 	$(V)find . -type f -name "*.[chS]" >cscope.files
 	$(V)cscope -bq 
 	$(V)ctags -L cscope.files
-
-
