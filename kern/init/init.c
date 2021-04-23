@@ -24,9 +24,8 @@ int kern_init(void) {
 
     cons_init();  // init the console
 
-    cprintf("%s\n\n", message);
     const char *message = "DancerInFarronOS is loading ...\n";
-    cprintf("%s\n\n", message);
+    cprintf("\n\n%s\n\n", message);
  
     print_kerninfo();
 
