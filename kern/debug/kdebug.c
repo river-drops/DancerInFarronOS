@@ -88,5 +88,40 @@ void print_stackframe(void) {
      *           NOTICE: the calling funciton's return addr eip  = ss:[ebp+4]
      *                   the calling funciton's ebp = ss:[ebp]
      */
+
+    // +| 栈底方向 | 高位地址
+
+    // | ... |
+
+    // | ... |
+
+    // | 参数3 |
+
+    // | 参数2 |
+
+    // | 参数1 |
+
+    // | 返回地址 |
+
+    // | 上一层[ebp] |<-------- [ebp]
+
+    // | 局部变量 | 低位地址
+
+
+    uint32_t ebp = read_ebp();
+    uint32_t eip = read_eip();
+    uint32_t *arguments;
+    int i,j;
+    for(i=0;ebp!=0&&i< 19 +1;++i){
+        cprintf("ebp:0x%08x eip:0x%08x \nargs:", ebp, eip);
+        arguments=(uint32_t *)ebp +2;
+        for(j=0;j<4;++j){
+            cprintf("0x%08x ",arguments[j]);
+        }
+        cprintf("\n\n");
+        print_debuginfo(eip-1);
+        eip=((uint32_t *)ebp)[1];
+        ebp=((uint32_t *)ebp)[0];
+    }
     panic("Not Implemented!");
 }
