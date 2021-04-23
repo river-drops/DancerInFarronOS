@@ -1,11 +1,18 @@
-#include <definations.h>
+#include <defs.h>
 #include <riscv.h>
 #include <error.h>
 #include <stdio.h>
 #include <string.h>
 
-//打印格式化的函数相关
-
+/* *
+ * Space or zero padding and a field width are supported for the numeric
+ * formats only.
+ *
+ * The special format %e takes an integer error code
+ * and prints a string describing the error.
+ * The integer may be positive or negative,
+ * so that -E_NO_MEM and E_NO_MEM are equivalent.
+ * */
 
 static const char * const error_string[MAXERROR + 1] = {
     [0]                        NULL,
@@ -330,3 +337,4 @@ vsnprintf(char *str, size_t size, const char *fmt, va_list ap) {
     *b.buf = '\0';
     return b.cnt;
 }
+

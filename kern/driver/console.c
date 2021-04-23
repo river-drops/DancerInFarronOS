@@ -1,28 +1,22 @@
-#include<sbi.h>
-#include<console.h>
+#include <sbi.h>
+#include <console.h>
 
+/* kbd_intr - try to feed input characters from keyboard */
+void kbd_intr(void) {}
 
-//从键盘读取输入数据
-void kbd_intr(void){
+/* serial_intr - try to feed input characters from serial port */
+void serial_intr(void) {}
 
-}
+/* cons_init - initializes the console devices */
+void cons_init(void) {}
 
-//从serial port读取输入数据
-void serial_intr(void) {
+/* cons_putc - print a single character @c to console devices */
+void cons_putc(int c) { sbi_console_putchar((unsigned char)c); }
 
-}
-
-//初始化控制台设备
-void cons_init(void) {
-
-}
-
-//向控制台设备打印一个单个字符
-void cons_putc(int c) { 
-    sbi_console_putchar((unsigned char)c); 
-}
-
-//从控制台获取一个输入字符
+/* *
+ * cons_getc - return the next input character from console,
+ * or 0 if none waiting.
+ * */
 int cons_getc(void) {
     int c = 0;
     c = sbi_console_getchar();

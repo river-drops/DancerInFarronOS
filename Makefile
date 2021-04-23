@@ -1,4 +1,4 @@
-PROJ	:= DancerInFarronOS
+PROJ	:= lab1
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -13,8 +13,8 @@ ifndef QEMU
 QEMU := qemu-system-riscv64
 endif
 
+
 # eliminate default suffix rules
-# 消除默认的后缀规则
 .SUFFIXES: .c .S .h
 
 # delete target files if there is an error (or make is interrupted)
@@ -39,34 +39,22 @@ LDFLAGS	+= -nostdlib --gc-sections
 OBJCOPY := $(GCCPREFIX)objcopy
 OBJDUMP := $(GCCPREFIX)objdump
 
-
 COPY	:= cp
-# -p: 可以是一个路径名称
 MKDIR   := mkdir -p
 MV		:= mv
-#rm -f 其中的，f参数 （f --force ） 忽略不存在的文件
 RM		:= rm -f
-
-#文本处理命令
 AWK		:= awk
-#替换删除相关文件内容命令
 SED		:= sed
-#shell命令
 SH		:= sh
-#转换删除文件中的字符命令
 TR		:= tr
-#touch命令用于修改文件或者目录的时间属性，包括存取时间和更改时间。若文件不存在，系统会建立一个新的文件
 TOUCH	:= touch -c
 
-# 生成目录
 OBJDIR	:= obj
 BINDIR	:= bin
 
 ALLOBJS	:=
 ALLDEPS	:=
 TARGETS	:=
-
-
 
 include tools/function.mk
 

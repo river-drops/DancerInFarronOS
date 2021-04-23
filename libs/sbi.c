@@ -1,6 +1,6 @@
 // libs/sbi.c
 #include <sbi.h>
-#include <definations.h>
+#include <defs.h>
 
 
 uint64_t SBI_SET_TIMER = 0;
