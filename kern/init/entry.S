@@ -14,6 +14,7 @@ kern_entry:
     # tail == riscv伪指令，作用相当于调用函数（跳转）
     tail kern_init
 
+//  .section .bss.stack
 .section .data
     # .align 2^12
     .align PGSHIFT
