@@ -4,7 +4,121 @@
 
 
 
-## Day4.23
+
+
+
+
+## Day4.25 物理内存管理
+
+今日完成相关代码的注释部分
+
+完成中断部分
+
+学习有关物理内存管理的部分
+
+
+
+### 页表项
+
+我们的”词典“（页表）存储在内存里，由若干个格式固定的”词条“也就是**页表项（PTE, Page Table Entry）**组成。
+
+一个页表项是用来描述一个虚拟页号如何映射到物理页号的。如果一个虚拟页号通过**某种手段**找到了一个页表项，并通过读取上面的物理页号完成映射，我们称这个虚拟页号**通过该页表项**完成映射。
+
+Sv39的一个页表项占据8字节，结构是这样的：
+
+| 63-54      | 53-28  | 27-19  | 18-10  | 9-8  | 7    | 6    | 5    | 4    | 3    | 2    | 1    | 0    |
+| ---------- | ------ | ------ | ------ | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| *Reserved* | PPN[2] | PPN[1] | PPN[0] | RSW  | D    | A    | G    | U    | X    | W    | R    | V    |
+| 10         | 26     | 9      | 9      | 2    | 1    | 1    | 1    | 1    | 1    | 1    | 1    | 1    |
+
+---
+
+我们可以看到 Sv39 里面的一个页表项大小为64位 8 字节。其中第 53−10 共 44 位为一个物理页号，表示这个虚拟页号映射到的物理页号。后面的第 9−0位则描述映射的状态信息。
+
+- RSW两位留给 S Mode 的应用程序，我们可以用来进行拓展。
+
+- D，即 Dirty ，如果 D=1表示自从上次 D被清零后，有虚拟地址通过这个页表项进行写入。
+
+- A，即 Accessed，如果 A=1表示自从上次 A 被清零后，有虚拟地址通过这个页表项进行读、或者写、或者取指。
+
+- G，即Global，如果G=1表示这个页表项是”全局"的，也就是所有的地址空间（所有的页表）都包含这一项
+
+- U(user)为 111 表示用户态 (U Mode)的程序 可以通过该页表项进行映射。在用户态运行时也只能够通过 U=1的页表项进行虚实地址映射。
+
+  注意，S Mode 不一定可以通过 U=1的页表项进行映射。我们需要将 S Mode 的状态寄存器 `sstatus` 上的 **SUM** 位手动设置为 111 才可以做到这一点（通常情况不会把它置1）。否则通过 U=1的页表项进行映射也会报出异常。另外，不论`sstatus`的**SUM**位如何取值，S Mode都不允许执行 U=1的页面里包含的指令，这是出于安全的考虑。
+
+- R,W,X为许可位，分别表示是否可读 (Readable)，可写 (Writable)，可执行 (Executable)。
+
+- V表示这个页表项是否合法。如果为 000 表示不合法，此时页表项其他位的值都会被忽略。
+
+以 W这一位为例，如果 W=0 表示不可写，那么如果一条 store 的指令，它通过这个页表项完成了虚拟页号到物理页号的映射，找到了物理地址。但是仍然会报出异常，是因为这个页表项规定如果物理地址是通过它映射得到的，那么不准写入！R,X 也是同样的道理。
+
+根据 R,W,X取值的不同，我们可以分成下面几种类型：
+
+| X    | W    | R    | Meaning                         |
+| ---- | ---- | ---- | ------------------------------- |
+| 0    | 0    | 0    | 指向下一级页表的指针            |
+| 0    | 0    | 1    | 这一页只读                      |
+| 0    | 1    | 0    | *保留(reserved for future use)* |
+| 0    | 1    | 1    | 这一页可读可写（不可执行）      |
+| 1    | 0    | 0    | 这一页可读可执行（不可写）      |
+| 1    | 0    | 1    | 这一页可读可执行                |
+| 1    | 1    | 0    | *保留(reserved for future use)* |
+| 1    | 1    | 1    | 这一页可读可写可执行            |
+
+
+
+
+
+### 页表基址
+
+在翻译的过程中，我们首先需要知道树状页表的根节点的物理地址（思考：为啥不是“根节点的虚拟地址”？）。
+
+这一般保存在一个特殊寄存器里。对于RISCV架构，是一个叫做`satp`（Supervisor Address Translation and Protection Register）的CSR。实际上，`satp`里面存的不是最高级页表的起始物理地址，而是它所在的物理页号。除了物理页号，`satp`还包含其他信息
+
+| 63-60 | 59-44 | 43-0 |
+| ----- | ----- | ---- |
+| MODE  | ASID  | PPN  |
+| 4     | 16    | 44   |
+
+MODE表示当前页表的模式
+
+- 0000表示不使用页表，直接使用物理地址，在简单的嵌入式系统里用着很方便。
+- 0100表示Sv39页表，也就是我们使用的，虚拟内存空间高达512GiB。
+- 0101表示Sv48页表，它和Sv39兼容，可以猜猜它有几层。虚拟内存空间高达256TiB。
+- 其他编码保留备用。
+
+ASID （Address Space Identifier 地址空间标识符）域是可选的，它可以用来降低上下文切换的开销。
+
+PPN字段保存了根页表的物理地址，它以 4 KiB的页面大小为单位。通常 M模式的程序在第一次进入 S模式之前会把零写入 satp以禁用分页，然后 S模式的程序在初始化页表以后会再次进行satp寄存器的写操作。
+
+OS 可以在内存中为不同的应用分别建立不同虚实映射的页表，并通过修改寄存器 `satp` 的值指向不同的页表，从而可以修改 CPU 虚实地址映射关系及内存保护的行为。
+
+
+
+---
+
+
+
+
+
+
+
+## Day4.24 中断相关
+
+划水一天
+
+问题
+
+1. 描述处理中断异常的流程
+2. 对于任何中断都需要保存所有的寄存器吗？为什么？
+3. 触发，捕获，处理异常
+
+
+
+
+
+## Day4.23 
 
 今日target
 
@@ -33,6 +147,114 @@
 * 中断向量表的理解构建
 * makefile文件的全注释
 * 定时器中断的设置
+
+lab1实验五代码
+
+```c
+/* *
+ * print_stackframe - print a list of the saved eip values from the nested
+ * 'call'
+ * instructions that led to the current point of execution
+ *
+ * The x86 stack pointer, namely esp, points to the lowest location on the stack
+ * that is currently in use. Everything below that location in stack is free.
+ * Pushing
+ * a value onto the stack will invole decreasing the stack pointer and then
+ * writing
+ * the value to the place that stack pointer pointes to. And popping a value do
+ * the
+ * opposite.
+ *
+ * The ebp (base pointer) register, in contrast, is associated with the stack
+ * primarily by software convention. On entry to a C function, the function's
+ * prologue code normally saves the previous function's base pointer by pushing
+ * it onto the stack, and then copies the current esp value into ebp for the
+ * duration
+ * of the function. If all the functions in a program obey this convention,
+ * then at any given point during the program's execution, it is possible to
+ * trace
+ * back through the stack by following the chain of saved ebp pointers and
+ * determining
+ * exactly what nested sequence of function calls caused this particular point
+ * in the
+ * program to be reached. This capability can be particularly useful, for
+ * example,
+ * when a particular function causes an assert failure or panic because bad
+ * arguments
+ * were passed to it, but you aren't sure who passed the bad arguments. A stack
+ * backtrace lets you find the offending function.
+ *
+ * The inline function read_ebp() can tell us the value of current ebp. And the
+ * non-inline function read_eip() is useful, it can read the value of current
+ * eip,
+ * since while calling this function, read_eip() can read the caller's eip from
+ * stack easily.
+ *
+ * In print_debuginfo(), the function debuginfo_eip() can get enough information
+ * about
+ * calling-chain. Finally print_stackframe() will trace and print them for
+ * debugging.
+ *
+ * Note that, the length of ebp-chain is limited. In boot/bootasm.S, before
+ * jumping
+ * to the kernel entry, the value of ebp has been set to zero, that's the
+ * boundary.
+ * */
+void print_stackframe(void) {
+    /* LAB1 YOUR CODE : STEP 1 */
+    /* (1) call read_ebp() to get the value of ebp. the type is (uint32_t);
+     * (2) call read_eip() to get the value of eip. the type is (uint32_t);
+     * (3) from 0 .. STACKFRAME_DEPTH
+     *    (3.1) printf value of ebp, eip
+     *    (3.2) (uint32_t)calling arguments [0..4] = the contents in address
+     * (unit32_t)ebp +2 [0..4]
+     *    (3.3) cprintf("\n");
+     *    (3.4) call print_debuginfo(eip-1) to print the C calling function name
+     * and line number, etc.
+     *    (3.5) popup a calling stackframe
+     *           NOTICE: the calling funciton's return addr eip  = ss:[ebp+4]
+     *                   the calling funciton's ebp = ss:[ebp]
+     */
+
+    // +| 栈底方向 | 高位地址
+
+    // | ... |
+
+    // | ... |
+
+    // | 参数3 |
+
+    // | 参数2 |
+
+    // | 参数1 |
+
+    // | 返回地址 |
+
+    // | 上一层[ebp] |<-------- [ebp]
+
+    // | 局部变量 | 低位地址
+
+
+    uint32_t ebp = read_ebp();
+    uint32_t eip = read_eip();
+    uint32_t *arguments;
+    int i,j;
+    for(i=0;ebp!=0&&i< 19 +1;++i){
+        cprintf("ebp:0x%08x eip:0x%08x \nargs:", ebp, eip);
+        arguments=(uint32_t *)ebp +2;
+        for(j=0;j<4;++j){
+            cprintf("0x%08x ",arguments[j]);
+        }
+        cprintf("\n\n");
+        print_debuginfo(eip-1);
+        eip=((uint32_t *)ebp)[1];
+        ebp=((uint32_t *)ebp)[0];
+    }
+    panic("Not Implemented!");
+}
+```
+
+
 
 ---
 
