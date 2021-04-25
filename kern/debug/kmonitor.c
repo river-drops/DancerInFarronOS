@@ -8,9 +8,11 @@
  * Simple command-line kernel monitor useful for controlling the
  * kernel and exploring the system interactively.
  * */
-
+//命令信息，在下面的commands进行初始化
 struct command {
+    //命令
     const char *name;
+    //描述
     const char *desc;
     // return -1 to force monitor to exit
     int (*func)(int argc, char **argv, struct trapframe *tf);
@@ -22,15 +24,20 @@ static struct command commands[] = {
     {"backtrace", "Print backtrace of stack frame.", mon_backtrace},
 };
 
+
+//定义了命令的条数
 #define NCOMMANDS (sizeof(commands) / sizeof(struct command))
 
 /***** Kernel monitor command interpreter *****/
 
+//定义了最大的参数个数
 #define MAXARGS 16
 #define WHITESPACE " \t\n\r"
 
 /* parse - parse the command buffer into whitespace-separated arguments */
 //用来提取参数，并返回参数个数
+//buf指输入的命令行command
+//argv用来保存分割的每一个字符串的token
 static int parse(char *buf, char **argv) {
     int argc = 0;
     while (1) {
@@ -48,6 +55,8 @@ static int parse(char *buf, char **argv) {
             cprintf("Too many arguments (max %d).\n", MAXARGS);
         }
         argv[argc++] = buf;
+        //strchr返回一个指针
+        //指向的第二个参数字符在第一个字符数组中出现的位置指针
         while (*buf != '\0' && strchr(WHITESPACE, *buf) == NULL) {
             buf++;
         }

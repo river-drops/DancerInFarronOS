@@ -3,6 +3,8 @@
 
 #include <defs.h>
 
+
+
 void __warn(const char *file, int line, const char *fmt, ...);
 void __noreturn __panic(const char *file, int line, const char *fmt, ...);
 
@@ -10,6 +12,7 @@ void __noreturn __panic(const char *file, int line, const char *fmt, ...);
 
 #define panic(...) __panic(__FILE__, __LINE__, __VA_ARGS__)
 
+//定义断言，本质上使用panic
 #define assert(x)                              \
     do {                                       \
         if (!(x)) {                            \

@@ -6,6 +6,7 @@
 uint64_t SBI_SET_TIMER = 0;
 uint64_t SBI_CONSOLE_PUTCHAR = 1; 
 uint64_t SBI_CONSOLE_GETCHAR = 2;
+//IPI
 uint64_t SBI_CLEAR_IPI = 3;
 uint64_t SBI_SEND_IPI = 4;
 uint64_t SBI_REMOTE_FENCE_I = 5;

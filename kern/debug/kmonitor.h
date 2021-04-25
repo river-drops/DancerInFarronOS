@@ -5,7 +5,10 @@
 
 void kmonitor(struct trapframe *tf);
 
+//打印可以使用那些命令和命令的描述
 int mon_help(int argc, char **argv, struct trapframe *tf);
+
+//
 int mon_kerninfo(int argc, char **argv, struct trapframe *tf);
 int mon_backtrace(int argc, char **argv, struct trapframe *tf);
 
