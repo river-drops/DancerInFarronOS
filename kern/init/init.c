@@ -1,5 +1,3 @@
-#include <stdio.h>
-#include <string.h>
 #include <clock.h>
 #include <console.h>
 #include <defs.h>
@@ -7,10 +5,10 @@
 #include <kdebug.h>
 #include <kmonitor.h>
 #include <pmm.h>
-#include <riscv.h>
 #include <stdio.h>
 #include <string.h>
 #include <trap.h>
+
 
 
 int kern_init(void) __attribute__((noreturn));
@@ -30,6 +28,10 @@ int kern_init(void) {
     print_kerninfo();
 
     // grade_backtrace();
+
+    idt_init();  // init interrupt descriptor table
+
+    pmm_init();  // init physical memory management
 
     idt_init();  // init interrupt descriptor table
 
