@@ -83,6 +83,12 @@ void printf(char *fmt, ...) {
     }
 }
 
+void ErrorStr(char *s) {
+    printf("\x1b[31m%s\x1b[0m\n",s);
+}
+void WarnStr(char *s) {
+    printf("\x1b[93m%s\x1b[0m\n",s);
+}
 // info
 //     printf("\x1b[34m%s\x1b[0m",s);
 void InfoStr(char *s) {
@@ -90,6 +96,12 @@ void InfoStr(char *s) {
 }
 void InfoData(char *name,char * start,char * end){
     printf("\x1b[34m%s load range : [%p, %p]\x1b[0m\n", name, start, end);
+}
+void DebugStr(char *s) {
+    printf("\x1b[32m%s\x1b[0m\n",s);
+}
+void TraceStr(char *s) {
+    printf("\x1b[90m%s\x1b[0m\n",s);
 }
 
 

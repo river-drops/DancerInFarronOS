@@ -16,8 +16,12 @@ void consputc(int);
 
 // printf.c
 void printf(char *, ...);
+void ErrorStr(char *);
+void WarnStr(char *);
 void InfoStr(char *);
 void InfoData(char *,char *,char *);
+void DebugStr(char *);
+void TraceStr(char *);
 //void Info(int start,int end);
 void printfinit(void);
 void panic(char*);

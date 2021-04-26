@@ -18,8 +18,12 @@ void clean_bss() {
 void main() {
     clean_bss();
     printf("\n");
-    char *s="Hello World!";
+    char *s="DancerInFarronOS is loading!!!";
+    ErrorStr(s);
+    WarnStr(s);
     InfoStr(s);
+    DebugStr(s);
+    TraceStr(s);
     //printf("\x1b[34mDancerInFarronOS is loading!!!\x1b[0m\n");
     printf("stext: %p\n", s_text);
     printf("etext: %p\n", e_text);
@@ -37,7 +41,7 @@ void main() {
     printf("sbss : %p\n", s_bss);
     printf("ebss : %p\n", e_bss);
 
-    
+
     printf("\n");
     shutdown();
 }
