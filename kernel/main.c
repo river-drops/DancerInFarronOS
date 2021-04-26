@@ -18,15 +18,26 @@ void clean_bss() {
 void main() {
     clean_bss();
     printf("\n");
-    printf("DancerInFarronOS is loading!!!\n");
+    char *s="Hello World!";
+    InfoStr(s);
+    //printf("\x1b[34mDancerInFarronOS is loading!!!\x1b[0m\n");
     printf("stext: %p\n", s_text);
     printf("etext: %p\n", e_text);
+    char *s2="|Section text|";
+    InfoData(s2, s_text, e_text);
+
     printf("sroda: %p\n", s_rodata);
     printf("eroda: %p\n", e_rodata);
+
+
     printf("sdata: %p\n", s_data);
     printf("edata: %p\n", e_data);
+
+
     printf("sbss : %p\n", s_bss);
     printf("ebss : %p\n", e_bss);
+
+    
     printf("\n");
     shutdown();
 }

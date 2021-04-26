@@ -2,6 +2,7 @@
 #include <stdarg.h>
 static char digits[] = "0123456789abcdef";
 
+//打印整型数,base=基本进制,sign=是否有符号
 static void
 printint(int xx, int base, int sign) {
     char buf[16];
@@ -25,6 +26,8 @@ printint(int xx, int base, int sign) {
         consputc(buf[i]);
 }
 
+
+//打印地址
 static void
 printptr(uint64 x) {
     int i;
@@ -79,6 +82,16 @@ void printf(char *fmt, ...) {
         }
     }
 }
+
+// info
+//     printf("\x1b[34m%s\x1b[0m",s);
+void InfoStr(char *s) {
+    printf("\x1b[34m%s\x1b[0m\n",s);
+}
+void InfoData(char *name,char * start,char * end){
+    printf("\x1b[34m%s load range : [%p, %p]\x1b[0m\n", name, start, end);
+}
+
 
 void
 panic(char *s)

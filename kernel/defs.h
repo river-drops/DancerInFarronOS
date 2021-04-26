@@ -1,5 +1,8 @@
 #include "types.h"
 
+
+
+
 // panic.c
 void loop();
 
@@ -13,8 +16,13 @@ void consputc(int);
 
 // printf.c
 void printf(char *, ...);
+void InfoStr(char *);
+void InfoData(char *,char *,char *);
+//void Info(int start,int end);
 void printfinit(void);
 void panic(char*);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x) / sizeof((x)[0]))
+
+

@@ -16,6 +16,7 @@ static inline uint64 r_mhartid() {
 #define MSTATUS_MPP_U (0L << 11)
 #define MSTATUS_MIE (1L << 3)// machine-mode interrupt enable.
 
+//read
 static inline uint64 r_mstatus() {
     uint64 x;
     asm volatile("csrr %0, mstatus"
@@ -23,6 +24,7 @@ static inline uint64 r_mstatus() {
     return x;
 }
 
+//write
 static inline void w_mstatus(uint64 x) {
     asm volatile("csrw mstatus, %0"
                  :
