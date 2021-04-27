@@ -4,7 +4,8 @@
 
 #define min(a, b) a < b ? a : b;
 
-//fd==1,打印str 的len长度内的内容
+//fd 描述当前进程需要访问的文件
+//str表示保存即将写入文件的数据的缓冲区的地址，len 表示最大的写入字节数
 uint64 sys_write(int fd, char *str, uint len) {
     if (fd != 1)
         return -1;

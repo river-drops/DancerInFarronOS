@@ -36,7 +36,7 @@ _app_names:
     .global app_{0}_start
 app_{0}_start:
     .incbin "{1}"
-'''.format(idx, TARGET_DIR + app)
+'''.format(idx, TARGET_DIR +"/"+ app)   #error here change TARGET_DIR + app => TARGET_DIR +"/"+ app
         )
     f.write('app_{}_end:\n\n'.format(len(apps) - 1))
     f.close()
