@@ -25,6 +25,9 @@
 #include "../libs/printf.h"
 #include "../libs/disk.h"
 
+//高速缓存块
+//通过链表将所有buffer进行链接
+//spinlock是互斥原语，保证原子操作
 struct {
   struct spinlock lock;
   struct buf buf[NBUF];
@@ -35,6 +38,7 @@ struct {
   struct buf head;
 } bcache;
 
+//cache的初始化
 void
 binit(void)
 {
