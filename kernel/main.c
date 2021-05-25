@@ -1,52 +1,83 @@
-#include "defs.h"
+// Copyright (c) 2006-2019 Frans Kaashoek, Robert Morris, Russ Cox,
+//                         Massachusetts Institute of Technology
 
-extern char s_text[];
-extern char e_text[];
-extern char s_rodata[];
-extern char e_rodata[];
-extern char s_data[];
-extern char e_data[];
-extern char s_bss[];
-extern char e_bss[];
-extern char ekernel[];
+#include "../libs/types.h"
+#include "../libs/param.h"
+#include "../libs/memlayout.h"
+#include "../libs/riscv.h"
+#include "../libs/sbi.h"
+#include "../libs/console.h"
+#include "../libs/printf.h"
+#include "../libs/kalloc.h"
+#include "../libs/timer.h"
+#include "../libs/trap.h"
+#include "../libs/proc.h"
+#include "../libs/plic.h"
+#include "../libs/vm.h"
+#include "../libs/disk.h"
+#include "../libs/buf.h"
+#ifndef QEMU
+#include "../libs/sdcard.h"
+#include "../libs/fpioa.h"
+#include "../libs/dmac.h"
+#endif
 
-void clean_bss() {
-    char* p;
-    for(p = s_bss; p < e_bss; ++p)
-        *p = 0;
+static inline void inithartid(unsigned long hartid) {
+  asm volatile("mv tp, %0" : : "r" (hartid & 0x1));
 }
 
-void main() {
-    clean_bss();
-    printf("\n");
-    char *s="DancerInFarronOS is loading!!!";
-    ErrorStr(s);
-    WarnStr(s);
-    InfoStr(s);
-    DebugStr(s);
-    TraceStr(s);
-    //printf("\x1b[34mDancerInFarronOS is loading!!!\x1b[0m\n");
-    // printf("stext: %p\n", s_text);
-    // printf("etext: %p\n", e_text);
-    // char *s2="|Section text|";
-    // InfoData(s2, s_text, e_text);
+volatile static int started = 0;
 
-    // printf("sroda: %p\n", s_rodata);
-    // printf("eroda: %p\n", e_rodata);
-
-
-    // printf("sdata: %p\n", s_data);
-    // printf("edata: %p\n", e_data);
-
-
-    // printf("sbss : %p\n", s_bss);
-    // printf("ebss : %p\n", e_bss);
-
-    printf("\n");
-
-    trapinit();
-    batchinit();
-    run_next_app();
-
-    shutdown();
+void
+main(unsigned long hartid, unsigned long dtb_pa)
+{
+  inithartid(hartid);
+  
+  if (hartid == 0) {
+    consoleinit();
+    printfinit();   // init a lock for printf 
+    print_logo();
+    #ifdef DEBUG
+    printf("hart %d enter main()...\n", hartid);
+    #endif
+    kinit();         // physical page allocator
+    kvminit();       // create kernel page table
+    kvminithart();   // turn on paging
+    timerinit();     // init a lock for timer
+    trapinithart();  // install kernel trap vector, including interrupt handler
+    procinit();
+    plicinit();
+    plicinithart();
+    #ifndef QEMU
+    fpioa_pin_init();
+    dmac_init();
+    #endif 
+    disk_init();
+    binit();         // buffer cache
+    fileinit();      // file table
+    userinit();      // first user process
+    printf("hart 0 init done\n");
+    
+    for(int i = 1; i < NCPU; i++) {
+      unsigned long mask = 1 << i;
+      sbi_send_ipi(&mask);
+    }
+    __sync_synchronize();
+    started = 1;
+  }
+  else
+  {
+    // hart 1
+    while (started == 0)
+      ;
+    __sync_synchronize();
+    #ifdef DEBUG
+    printf("hart %d enter main()...\n", hartid);
+    #endif
+    kvminithart();
+    trapinithart();
+    plicinithart();  // ask PLIC for device interrupts
+    printf("hart 1 init done\n");
+  }
+  scheduler();
 }
