@@ -37,6 +37,7 @@ fileinit(void)
 }
 
 // Allocate a file structure.
+// 扫描整个文件表来寻找一个没有被引用的文件（file->ref == 0)并且返回一个新的引用
 struct file*
 filealloc(void)
 {
@@ -55,6 +56,7 @@ filealloc(void)
 }
 
 // Increment ref count for file f.
+// 增加引用计数
 struct file*
 filedup(struct file *f)
 {
@@ -67,6 +69,7 @@ filedup(struct file *f)
 }
 
 // Close file f.  (Decrement ref count, close when reaches 0.)
+// 减少引用计数。当一个文件的引用计数变为0的时候，fileclose就会释放掉当前的管道或者i 节点（根据文件类型的不同）
 void
 fileclose(struct file *f)
 {
@@ -95,6 +98,7 @@ fileclose(struct file *f)
 
 // Get metadata about file f.
 // addr is a user virtual address, pointing to a struct stat.
+// 获得文件的元数据，addr用户虚拟地址，指向一个struct stat
 int
 filestat(struct file *f, uint64 addr)
 {
@@ -115,6 +119,7 @@ filestat(struct file *f, uint64 addr)
 
 // Read from file f.
 // addr is a user virtual address.
+// 文件读取，addr是用户虚拟地址
 int
 fileread(struct file *f, uint64 addr, int n)
 {
@@ -122,7 +127,7 @@ fileread(struct file *f, uint64 addr, int n)
 
   if(f->readable == 0)
     return -1;
-
+  //判断文件类型
   switch (f->type) {
     case FD_PIPE:
         r = piperead(f->pipe, addr, n);

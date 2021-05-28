@@ -7,6 +7,9 @@
 
 #define STAT_MAX_NAME 32
 
+//此文件主要声明文件或目录属性数据结构
+
+//主要是文件状态
 struct stat {
   char name[STAT_MAX_NAME + 1];
   int dev;     // File system's disk device

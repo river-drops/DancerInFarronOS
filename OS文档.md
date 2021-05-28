@@ -1,7 +1,19 @@
 #   DancerInFarron队伍——OS文档总结 
 > 说明：本项目是对华中科技大学同学所开发的xv6-k210[]进行的部分注释版，对于比赛来说由于时间和精力有限，小组开发的OS并没有完成文件系统，因此无法跑测试用例，故临时打算对xv6-k210项目进行注释，并写此文档(未完成)，虽然没有完成比赛，但是还是希望通过此文档对我们这几个月来的学习成果进行一些总结。
 >
-> 文档引用材料来源：https://rcore-os.github.io/rCore-Tutorial-Book-v3/index.html，https://github.com/DeathWish5/ucore-Tutorial-Book，https://zhuanlan.zhihu.com/p/150571417，http://www.itqiankun.com/article/file-fd，https://pan.educg.net/api/v3/file/get/3851/xv6-k210%E7%AE%80%E5%8D%95%E6%8C%87%E5%8D%97.pdf?sign=pJejma9ILmFlYszY4_sTbzzc9V2sONCegLClEBuY4qc%3D%3A0，https://xiayingp.gitbook.io/build_a_os/traps-and-interrupts/untitled-3
+> 文档引用材料来源：
+>
+> https://rcore-os.github.io/rCore-Tutorial-Book-v3/index.html，
+>
+> https://github.com/DeathWish5/ucore-Tutorial-Book，
+>
+> https://zhuanlan.zhihu.com/p/150571417，
+>
+> http://www.itqiankun.com/article/file-fd，
+>
+> https://pan.educg.net/api/v3/file/get/3851/xv6-k210%E7%AE%80%E5%8D%95%E6%8C%87%E5%8D%97.pdf?sign=pJejma9ILmFlYszY4_sTbzzc9V2sONCegLClEBuY4qc%3D%3A0，
+>
+> https://xiayingp.gitbook.io/build_a_os/traps-and-interrupts/untitled-3
 
 
 
@@ -292,13 +304,199 @@ DANCERINFARRONOS
 
 
 ## 7 文件系统
-### 7.1 FAT32文件系统原理
+### 7.1 什么是文件
+
+> 在linux下，一切皆文件
+
+​	不止在linux下，在大部分的操作系统中，可以将一切都看作是文件包括普通文件，目录文件，字符设备文件（如键盘，鼠标…），块设备文件（如硬盘，光驱…），套接字等等，所有一切均抽象成文件，提供了统一的接口，方便应用程序调用。
+
+​	文件是提供给应用程序用的，但有操作系统来进行管理。
+
+~~~c
+//定义文件的基本结构
+struct file {
+  enum { FD_NONE, FD_PIPE, FD_ENTRY, FD_DEVICE } type;
+  int ref; // reference count
+  char readable;
+  char writable;
+  struct pipe *pipe; // FD_PIPE
+  struct dirent *ep;
+  uint off;          // FD_ENTRY
+  short major;       // FD_DEVICE
+};
+~~~
 
 
 
 
 
-### 7.2 相关代码文件及解释
+### 7.2 文件描述符
+
+​	在操作系统中，将一切都抽象为文件，那么对于一个打开的文件，应用程序如何对应上？
+
+​	这时候就要用到文件描述符了（FD）。
+
+​	文件描述符：File descriptor,简称fd，当应用程序请求内核打开/新建一个文件时，内核会返回一个文件描述符用于对应这个打开/新建的文件，其fd本质上就是一个非负整数。实际上，它是一个索引值，指向内核为每一个进程所维护的该进程打开文件的记录表。当程序打开一个现有文件或者创建一个新文件时，内核向进程返回一个文件描述符。在程序设计中，一些涉及底层的程序编写往往会围绕着文件描述符展开。但是文件描述符这一概念往往只适用于UNIX、Linux这样的操作系统。
+
+
+
+
+
+### 7.3 Fat32文件系统
+
+#### 7.3.1 基本结构
+
+在此项目中采用的是FAT32文件系统，基本结构如下：
+
+![文件系统](./pic/文件系统fat32.jpg)
+
+* 文件结构之间的串联通过FAT表完成
+* 以簇为管理分配单位，一个簇为若干个连续扇区
+* 没有采用inode，将一个文件的描述信息直接保存在目录文件中
+* 利用小端方式存储
+
+基本布局如下：
+
+![布局](./pic/fat32布局.jpg)
+
+
+
+#### 7.3.2 初始化
+
+文件系统的参数放在保留区的第一个扇区（0号扇区）中的一个被称为BPB（Bios Parameter Block）的数据结构中，信息如下：
+
+| FAT32标识         | 鉴别文件系统类型                                             |
+| ----------------- | ------------------------------------------------------------ |
+| 每个扇区字节数    | 对于一般SD卡一般都是512字节                                  |
+| 每个簇的扇区数    | 只能为2的1-7次幂                                             |
+| 保留区的扇区数    | 也就是FAT表区的第一个扇区号                                  |
+| FAT表的数量       | 可以计算出FAT表区占用的总扇区数，加上保留扇区数，可以推算出数据区第一个扇区的扇区号 |
+| 每个FAT表的扇区数 |                                                              |
+| 总扇区数          | 包括保留区，FAT表和数据区                                    |
+| 根目录的簇号      | 一般为2                                                      |
+
+
+
+#### 7.3.3 FAT表
+
+​	FAT表起到串联的作用。在FAT表中，每4个字节对应一个簇，可以将FAT表看作一个uint32数组。对于第i个簇,FAT[i]的内容表示下一个簇的簇号，如果该值大于等于OxOFFFFFF8，表示簇i为该簇链的最后一个簇。如果值为0，表示该簇是空闲簇。需要注意，FAT[O]和FAT[1]表示介质类型和文件系统错误标志，没有对应的簇。因此，簇号从2开始计算，数据区的第一个簇即2号簇。
+
+![fat表](./pic/fat表.jpg)
+
+
+
+#### 7.3.4 目录文件与目录项
+
+* 目录文件就是存放目录项的文件，一个目录项大小为32字节
+* 有两种目录项--长文件名目录项和短文件名目录项
+
+例：文件“The quick brown.fox”的目录项在磁盘上的存储形式：
+
+![目录项存储示例](./pic/目录项存储示例.jpg)
+
+
+
+#### 7.3.5 文件对象在内存中的管理
+
+
+
+
+
+
+
+
+
+（7.3 FAT32文件系统内容来自于华科xv6-k210简单指南）
+
+
+
+### 7.4 相关代码文件及解释
+
+#### 7.4.1 文件基本操作
+
+~~~c
+//扫描整个文件表来寻找一个没有被引用的文件（file->ref == 0)并且返回一个新的引用
+struct file*
+filealloc(void)
+{
+  struct file *f;
+
+  acquire(&ftable.lock);
+  for(f = ftable.file; f < ftable.file + NFILE; f++){
+    if(f->ref == 0){
+      f->ref = 1;
+      release(&ftable.lock);
+      return f;
+    }
+  }
+  release(&ftable.lock);
+  return NULL;
+}
+~~~
+
+~~~c
+//增加引用计数
+struct file*
+filedup(struct file *f)
+{
+  acquire(&ftable.lock);
+  if(f->ref < 1)
+    panic("filedup");
+  f->ref++;
+  release(&ftable.lock);
+  return f;
+}
+~~~
+
+~~~c
+//减少引用计数。当一个文件的引用计数变为0的时候，fileclose就会释放掉当前的管道或者i 节点（根据文件类型的不同）
+void
+fileclose(struct file *f)
+{
+  struct file ff;
+
+  acquire(&ftable.lock);
+  if(f->ref < 1)
+    panic("fileclose");
+  if(--f->ref > 0){
+    release(&ftable.lock);
+    return;
+  }
+  ff = *f;
+  f->ref = 0;
+  f->type = FD_NONE;
+  release(&ftable.lock);
+
+  if(ff.type == FD_PIPE){
+    pipeclose(ff.pipe, ff.writable);
+  } else if(ff.type == FD_ENTRY){
+    eput(ff.ep);
+  } else if (ff.type == FD_DEVICE) {
+
+  }
+}
+~~~
+
+~~~c
+//获得文件的元数据，addr用户虚拟地址，指向一个struct stat
+int
+filestat(struct file *f, uint64 addr)
+{
+  // struct proc *p = myproc();
+  struct stat st;
+  
+  if(f->type == FD_ENTRY){
+    elock(f->ep);
+    estat(f->ep, &st);
+    eunlock(f->ep);
+    // if(copyout(p->pagetable, addr, (char *)&st, sizeof(st)) < 0)
+    if(copyout2(addr, (char *)&st, sizeof(st)) < 0)
+      return -1;
+    return 0;
+  }
+  return -1;
+}
+~~~
 
 
 
@@ -306,3 +504,4 @@ DANCERINFARRONOS
 
 
 ## 8 大赛总结
+

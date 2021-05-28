@@ -13,7 +13,8 @@
 // * Only one process at a time can use a buffer,
 //     so do not keep them longer than necessary.
 
-
+//Buffer Cache的具体实现。因为读写磁盘操作效率不高，
+//根据时间与空间局部性原理，这里将最近经常访问的磁盘块缓存在内存中。
 
 #include "../libs/types.h"
 #include "../libs/param.h"
