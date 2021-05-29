@@ -275,8 +275,8 @@ DANCERINFARRONOS
 
 
 
-## 5 进程与中断
-### 5.1 进程与中断原理
+## 5 中断与中断
+### 5.1 中断与进程原理
 
 
 
@@ -375,11 +375,34 @@ struct file {
 | 总扇区数          | 包括保留区，FAT表和数据区                                    |
 | 根目录的簇号      | 一般为2                                                      |
 
+~~~c
+static struct {
+    uint32  first_data_sec;         //第一个数据段
+    uint32  data_sec_cnt;           //数据段的数量
+    uint32  data_clus_cnt;          //数据簇的数量
+    uint32  byts_per_clus;          //每个簇的字节数
+
+    struct {
+        uint16  byts_per_sec;       //每个扇区字节数
+        uint8   sec_per_clus;       //每个簇的扇区数
+        uint16  rsvd_sec_cnt;       //保留区的扇区数
+        uint8   fat_cnt;            //fat表的数量
+        uint32  hidd_sec;           //每个fat表的扇区数
+        uint32  tot_sec;            //总扇区数
+        uint32  fat_sz;             //fat大小
+        uint32  root_clus;          //根目录的簇号
+    } bpb;//0号扇区，存放文件系统的参数
+
+} fat;
+~~~
+
+
+
 
 
 #### 7.3.3 FAT表
 
-​	FAT表起到串联的作用。在FAT表中，每4个字节对应一个簇，可以将FAT表看作一个uint32数组。对于第i个簇,FAT[i]的内容表示下一个簇的簇号，如果该值大于等于OxOFFFFFF8，表示簇i为该簇链的最后一个簇。如果值为0，表示该簇是空闲簇。需要注意，FAT[O]和FAT[1]表示介质类型和文件系统错误标志，没有对应的簇。因此，簇号从2开始计算，数据区的第一个簇即2号簇。
+​	FAT表起到串联的作用。在FAT表中，每4个字节对应一个簇，可以将FAT表看作一个uint32数组。对于第i个簇,FAT[i]的内容表示下一个簇的簇号，如果该值大于等于OxOFFFFFF8，表示簇i为该簇链的最后一个簇。如果值为0，表示该簇是空闲簇。需要注意，FAT[O]和FAT[1]表示介质类型和文件系统错误标志，没有对应的簇。因此，簇号从2开始计算，**数据区的第一个簇即2号簇**。
 
 ![fat表](./pic/fat表.jpg)
 
@@ -398,7 +421,47 @@ struct file {
 
 #### 7.3.5 文件对象在内存中的管理
 
+* 一个文件在内存中对应唯一一个dirent结构体，以进行访问控制
 
+~~~c
+struct dirent {
+    char  filename[FAT32_MAX_FILENAME + 1];
+    uint8   attribute;
+    uint32  first_clus;
+    uint32  file_size;
+    uint32  cur_clus;
+    uint    clus_cnt;
+    /* for OS */
+    uint8   dev;
+    uint8   dirty;
+    short   valid;
+    int     ref;
+    uint32  off;            // 在根目录中的偏移，便于写入
+    struct dirent *parent;  // because FAT32 doesn't have such thing like inum, use this for cache trick
+    struct dirent *next;
+    struct dirent *prev;
+    struct sleeplock    lock;
+};
+~~~
+
+
+
+* 设置一个dirent结构体数组，且只能通过该数组获得结构体，被访问过的文件会被缓存在其中，可以减少磁盘访问次数还可以保证文件结构的唯一性
+* 采用了LRU算法进行缓存淘汰
+* 结构体设置引用次数，可以被多个文件描述符引用
+* 根目录结构体独立于缓存数组，实际在磁盘中并不存在
+* 读写文件之前需要申请锁
+
+
+
+​	与原版的xv6索引结构的文件系统不同，文件的信息没有i节点对应，而是直接存放在其所在目录文件中，当文件信息更新时，必须访问这个目录文件。
+
+* 对于普通文件，其并不知道其所在的目录信息
+* 对于目录文件，虽然其中有".."目录项，可以获得父目录的首簇号，但并不知道父目录的文件名，而且读写父目录应当首先获得读写锁，这必须通过其对应的结构体完成
+
+因此，我们在每个dirent结构体中设置一个parent字段，指向父目录的结构体，获得父目录的访问途径，当一个文件的最后一个引用被释放时，会同时释放其对父目录的引用，这样做的缺点是会占用较多的结构体资源。
+
+![文件对象在内存的管理](./pic/文件对象在内存中的管理.jpg)
 
 
 
@@ -495,6 +558,178 @@ filestat(struct file *f, uint64 addr)
     return 0;
   }
   return -1;
+}
+~~~
+
+#### 7.4.2 fat32.c的部分代码注释
+
+fat32的初始化
+
+~~~c
+int fat32_init()
+{
+    #ifdef DEBUG
+    printf("[fat32_init] enter!\n");
+    #endif
+    //去高速缓存块中获取dev=0的0号簇（即bpb，存放着文件系统的参数）
+    struct buf *b = bread(0, 0);
+    if (strncmp((char const*)(b->data + 82), "FAT32", 5))
+        panic("not FAT32 volume");
+    // fat.bpb.byts_per_sec = *(uint16 *)(b->data + 11);
+    // 给bpb（Bios Parameter Block）赋值
+    memmove(&fat.bpb.byts_per_sec, b->data + 11, 2);            // avoid misaligned load on k210
+    fat.bpb.sec_per_clus = *(b->data + 13);
+    fat.bpb.rsvd_sec_cnt = *(uint16 *)(b->data + 14);
+    fat.bpb.fat_cnt = *(b->data + 16);
+    fat.bpb.hidd_sec = *(uint32 *)(b->data + 28);
+    fat.bpb.tot_sec = *(uint32 *)(b->data + 32);
+    fat.bpb.fat_sz = *(uint32 *)(b->data + 36);
+    fat.bpb.root_clus = *(uint32 *)(b->data + 44);
+
+    //计算出文件系统的第一个数据扇区的扇区号=（保留扇区+fat表数量*fat表大小）
+    fat.first_data_sec = fat.bpb.rsvd_sec_cnt + fat.bpb.fat_cnt * fat.bpb.fat_sz;
+    //数据扇区的数量=总的扇区数-第一个数据扇区号
+    fat.data_sec_cnt = fat.bpb.tot_sec - fat.first_data_sec;
+    //数据簇的数量=数据扇区数量/每个簇的大小
+    fat.data_clus_cnt = fat.data_sec_cnt / fat.bpb.sec_per_clus;
+    //每个簇的字节数=每个簇的扇区数量*每个扇区的大小
+    fat.byts_per_clus = fat.bpb.sec_per_clus * fat.bpb.byts_per_sec;
+    //释放掉高速缓存块b的一个引用
+    brelse(b);
+
+    #ifdef DEBUG
+    printf("[FAT32 init]byts_per_sec: %d\n", fat.bpb.byts_per_sec);
+    printf("[FAT32 init]root_clus: %d\n", fat.bpb.root_clus);
+    printf("[FAT32 init]sec_per_clus: %d\n", fat.bpb.sec_per_clus);
+    printf("[FAT32 init]fat_cnt: %d\n", fat.bpb.fat_cnt);
+    printf("[FAT32 init]fat_sz: %d\n", fat.bpb.fat_sz);
+    printf("[FAT32 init]first_data_sec: %d\n", fat.first_data_sec);
+    #endif
+
+    // make sure that byts_per_sec has the same value with BSIZE 
+    if (BSIZE != fat.bpb.byts_per_sec) 
+        panic("byts_per_sec != BSIZE");
+
+    //为ecache添加一个互斥锁
+    initlock(&ecache.lock, "ecache");
+
+    //把根目录清零
+    memset(&root, 0, sizeof(root));
+    //为根目录添加一个entry锁
+    initsleeplock(&root.lock, "entry");
+
+
+    root.attribute = (ATTR_DIRECTORY | ATTR_SYSTEM);
+    //为根目录分配第一个簇号，并指定当前指向的簇号
+    root.first_clus = root.cur_clus = fat.bpb.root_clus;
+    root.valid = 1;
+    root.prev = &root;
+    root.next = &root;
+    //初始化ecache数组（文件集合）
+    for(struct dirent *de = ecache.entries; de < ecache.entries + ENTRY_CACHE_NUM; de++) {
+        de->dev = 0;
+        de->valid = 0;
+        de->ref = 0;
+        de->dirty = 0;
+        de->parent = 0;
+        de->next = root.next;
+        de->prev = &root;
+        initsleeplock(&de->lock, "entry");
+        root.next->prev = de;
+        root.next = de;
+    }
+    return 0;
+}
+~~~
+
+~~~c
+// 给定一个数据簇号，和第几个fat表，返回在这个fat表中的哪一个扇区
+// 直白的说就是寻找fat表中对应的扇区
+static inline uint32 fat_sec_of_clus(uint32 cluster, uint8 fat_num)
+{
+    return fat.bpb.rsvd_sec_cnt + (cluster << 2) / fat.bpb.byts_per_sec + fat.bpb.fat_sz * (fat_num - 1);
+}
+~~~
+
+~~~c
+// 给定簇号获得他在fat表中的偏移
+static inline uint32 fat_offset_of_clus(uint32 cluster)
+{
+    return (cluster << 2) % fat.bpb.byts_per_sec;
+}
+~~~
+
+~~~c
+// 基于给定的簇号读取相应的fat表扇区，并返回下一个簇号
+static uint32 read_fat(uint32 cluster)
+{
+    if (cluster >= FAT32_EOC) {
+        return cluster;
+    }
+    if (cluster > fat.data_clus_cnt + 1) {     // because cluster number starts at 2, not 0
+        return 0;
+    }
+    //找到簇号在 fat表1 对应的扇区
+    uint32 fat_sec = fat_sec_of_clus(cluster, 1);
+    //b映射一个fatsec缓存到高速缓存块中
+    struct buf *b = bread(0, fat_sec);
+    //获取下一个簇号
+    uint32 next_clus = *(uint32 *)(b->data + fat_offset_of_clus(cluster));
+    //释放b的一个引用
+    brelse(b);
+    return next_clus;
+}
+~~~
+
+~~~c
+static int write_fat(uint32 cluster, uint32 content)
+{
+    if (cluster > fat.data_clus_cnt + 1) {
+        return -1;
+    }
+    //获取簇在fat中的扇区号
+    uint32 fat_sec = fat_sec_of_clus(cluster, 1);
+    struct buf *b = bread(0, fat_sec);
+    uint off = fat_offset_of_clus(cluster);
+    //下面两行代码是将content中的内容写到b的扇区号里
+    *(uint32 *)(b->data + off) = content;
+    bwrite(b);
+    
+    brelse(b);
+    return 0;
+}
+~~~
+
+~~~c
+//从dev中分配一个簇
+static uint32 alloc_clus(uint8 dev)
+{
+    // should we keep a free cluster list? instead of searching fat every time.
+    struct buf *b;
+    uint32 sec = fat.bpb.rsvd_sec_cnt;
+
+    //每个扇区的表项数
+    uint32 const ent_per_sec = fat.bpb.byts_per_sec / sizeof(uint32);
+
+    //遍历fat表
+    for (uint32 i = 0; i < fat.bpb.fat_sz; i++, sec++) {
+        //读取dev中的sec保存到一个buffer中并返回到bn
+        b = bread(dev, sec);
+        //遍历buffer中所有表项
+        for (uint32 j = 0; j < ent_per_sec; j++) {
+            //如果未分配，初始化该簇并返回
+            if (((uint32 *)(b->data))[j] == 0) {
+                ((uint32 *)(b->data))[j] = FAT32_EOC + 7;
+                bwrite(b);
+                brelse(b);
+                uint32 clus = i * ent_per_sec + j;
+                zero_clus(clus);
+                return clus;
+            }
+        }
+        brelse(b);
+    }
+    panic("no clusters");
 }
 ~~~
 

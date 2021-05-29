@@ -68,6 +68,9 @@ binit(void)
 // Look through buffer cache for block on device dev.
 // If not found, allocate a buffer.
 // In either case, return locked buffer.
+// 给定dev号和扇区号
+// 遍历，如果扇区已分配则返回
+// 没分配就分配一个buffer并返回
 static struct buf*
 bget(uint dev, uint sectorno)
 {
@@ -102,6 +105,7 @@ bget(uint dev, uint sectorno)
 }
 
 // Return a locked buf with the contents of the indicated block.
+// 把dev中对应给定的扇区读到buffer中并返回
 struct buf* 
 bread(uint dev, uint sectorno) {
   struct buf *b;

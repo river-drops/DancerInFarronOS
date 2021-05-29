@@ -44,21 +44,21 @@ union dentry {
 };
 
 static struct {
-    uint32  first_data_sec;
-    uint32  data_sec_cnt;
-    uint32  data_clus_cnt;
-    uint32  byts_per_clus;
+    uint32  first_data_sec;         //第一个数据扇区号
+    uint32  data_sec_cnt;           //数据扇区的数量
+    uint32  data_clus_cnt;          //数据簇的数量
+    uint32  byts_per_clus;          //每个簇的字节数
 
     struct {
-        uint16  byts_per_sec;
-        uint8   sec_per_clus;
-        uint16  rsvd_sec_cnt;
-        uint8   fat_cnt;            /* count of FAT regions */
-        uint32  hidd_sec;           /* count of hidden sectors */
-        uint32  tot_sec;            /* total count of sectors including all regions */
-        uint32  fat_sz;             /* count of sectors for a FAT region */
-        uint32  root_clus;
-    } bpb;
+        uint16  byts_per_sec;       //每个扇区字节数
+        uint8   sec_per_clus;       //每个簇的扇区数
+        uint16  rsvd_sec_cnt;       //保留区的扇区数
+        uint8   fat_cnt;            //fat表的数量
+        uint32  hidd_sec;           //每个fat表的扇区数
+        uint32  tot_sec;            //总扇区数
+        uint32  fat_sz;             //fat表的大小
+        uint32  root_clus;          //根目录的簇号
+    } bpb;//0号扇区，存放文件系统的参数
 
 } fat;
 
@@ -79,10 +79,12 @@ int fat32_init()
     #ifdef DEBUG
     printf("[fat32_init] enter!\n");
     #endif
+    //去高速缓存块中获取dev=0的0号簇（即bpb，存放着文件系统的参数）
     struct buf *b = bread(0, 0);
     if (strncmp((char const*)(b->data + 82), "FAT32", 5))
         panic("not FAT32 volume");
     // fat.bpb.byts_per_sec = *(uint16 *)(b->data + 11);
+    // 给bpb（Bios Parameter Block）赋值
     memmove(&fat.bpb.byts_per_sec, b->data + 11, 2);            // avoid misaligned load on k210
     fat.bpb.sec_per_clus = *(b->data + 13);
     fat.bpb.rsvd_sec_cnt = *(uint16 *)(b->data + 14);
@@ -91,10 +93,16 @@ int fat32_init()
     fat.bpb.tot_sec = *(uint32 *)(b->data + 32);
     fat.bpb.fat_sz = *(uint32 *)(b->data + 36);
     fat.bpb.root_clus = *(uint32 *)(b->data + 44);
+
+    //计算出文件系统的第一个数据扇区的扇区号=（保留扇区+fat表数量*fat表大小）
     fat.first_data_sec = fat.bpb.rsvd_sec_cnt + fat.bpb.fat_cnt * fat.bpb.fat_sz;
+    //数据扇区的数量=总的扇区数-第一个数据扇区号
     fat.data_sec_cnt = fat.bpb.tot_sec - fat.first_data_sec;
+    //数据簇的数量=数据扇区数量/每个簇的大小
     fat.data_clus_cnt = fat.data_sec_cnt / fat.bpb.sec_per_clus;
+    //每个簇的字节数=每个簇的扇区数量*每个扇区的大小
     fat.byts_per_clus = fat.bpb.sec_per_clus * fat.bpb.byts_per_sec;
+    //释放掉高速缓存块b的一个引用
     brelse(b);
 
     #ifdef DEBUG
@@ -109,14 +117,23 @@ int fat32_init()
     // make sure that byts_per_sec has the same value with BSIZE 
     if (BSIZE != fat.bpb.byts_per_sec) 
         panic("byts_per_sec != BSIZE");
+
+    //为ecache添加一个互斥锁
     initlock(&ecache.lock, "ecache");
+
+    //把根目录清零
     memset(&root, 0, sizeof(root));
+    //为根目录添加一个entry锁
     initsleeplock(&root.lock, "entry");
+
+
     root.attribute = (ATTR_DIRECTORY | ATTR_SYSTEM);
+    //为根目录分配第一个簇号，并指定当前指向的簇号
     root.first_clus = root.cur_clus = fat.bpb.root_clus;
     root.valid = 1;
     root.prev = &root;
     root.next = &root;
+    //初始化ecache数组（文件集合）
     for(struct dirent *de = ecache.entries; de < ecache.entries + ENTRY_CACHE_NUM; de++) {
         de->dev = 0;
         de->valid = 0;
@@ -145,6 +162,8 @@ static inline uint32 first_sec_of_clus(uint32 cluster)
  * @param   cluster     number of a data cluster
  * @param   fat_num     number of FAT table from 1, shouldn't be larger than bpb::fat_cnt
  */
+// 给定一个数据簇号，和第几个fat表，返回在这个fat表中的哪一个扇区
+// 直白的说就是寻找fat表中对应的扇区
 static inline uint32 fat_sec_of_clus(uint32 cluster, uint8 fat_num)
 {
     return fat.bpb.rsvd_sec_cnt + (cluster << 2) / fat.bpb.byts_per_sec + fat.bpb.fat_sz * (fat_num - 1);
@@ -154,6 +173,7 @@ static inline uint32 fat_sec_of_clus(uint32 cluster, uint8 fat_num)
  * For the given number of a data cluster, return the offest in the corresponding sector in a FAT table.
  * @param   cluster   number of a data cluster
  */
+// 给定簇号获得他在fat表中的偏移
 static inline uint32 fat_offset_of_clus(uint32 cluster)
 {
     return (cluster << 2) % fat.bpb.byts_per_sec;
@@ -163,6 +183,7 @@ static inline uint32 fat_offset_of_clus(uint32 cluster)
  * Read the FAT table content corresponded to the given cluster number.
  * @param   cluster     the number of cluster which you want to read its content in FAT table
  */
+// 基于给定的簇号读取相应的fat表扇区，并返回下一个簇号
 static uint32 read_fat(uint32 cluster)
 {
     if (cluster >= FAT32_EOC) {
@@ -171,10 +192,13 @@ static uint32 read_fat(uint32 cluster)
     if (cluster > fat.data_clus_cnt + 1) {     // because cluster number starts at 2, not 0
         return 0;
     }
+    //找到簇号在 fat表1 对应的扇区
     uint32 fat_sec = fat_sec_of_clus(cluster, 1);
-    // here should be a cache layer for FAT table, but not implemented yet.
+    //b映射一个fatsec缓存到高速缓存块中
     struct buf *b = bread(0, fat_sec);
+    //获取下一个簇号
     uint32 next_clus = *(uint32 *)(b->data + fat_offset_of_clus(cluster));
+    //释放b的一个引用
     brelse(b);
     return next_clus;
 }
@@ -189,15 +213,19 @@ static int write_fat(uint32 cluster, uint32 content)
     if (cluster > fat.data_clus_cnt + 1) {
         return -1;
     }
+    //获取簇在fat中的扇区号
     uint32 fat_sec = fat_sec_of_clus(cluster, 1);
     struct buf *b = bread(0, fat_sec);
     uint off = fat_offset_of_clus(cluster);
+    //下面两行代码是将content中的内容写到b的扇区号里
     *(uint32 *)(b->data + off) = content;
     bwrite(b);
+    
     brelse(b);
     return 0;
 }
 
+//清零簇中的数据，并写入到磁盘中
 static void zero_clus(uint32 cluster)
 {
     uint32 sec = first_sec_of_clus(cluster);
@@ -210,15 +238,23 @@ static void zero_clus(uint32 cluster)
     }
 }
 
+//从dev中分配一个簇
 static uint32 alloc_clus(uint8 dev)
 {
     // should we keep a free cluster list? instead of searching fat every time.
     struct buf *b;
     uint32 sec = fat.bpb.rsvd_sec_cnt;
+
+    //每个扇区的表项数
     uint32 const ent_per_sec = fat.bpb.byts_per_sec / sizeof(uint32);
+
+    //遍历fat表
     for (uint32 i = 0; i < fat.bpb.fat_sz; i++, sec++) {
+        //读取dev中的sec保存到一个buffer中并返回到bn
         b = bread(dev, sec);
+        //遍历buffer中所有表项
         for (uint32 j = 0; j < ent_per_sec; j++) {
+            //如果未分配，初始化该簇并返回
             if (((uint32 *)(b->data))[j] == 0) {
                 ((uint32 *)(b->data))[j] = FAT32_EOC + 7;
                 bwrite(b);
@@ -233,17 +269,20 @@ static uint32 alloc_clus(uint8 dev)
     panic("no clusters");
 }
 
+//清空簇
 static void free_clus(uint32 cluster)
 {
     write_fat(cluster, 0);
 }
 
+//对簇进行读写
 static uint rw_clus(uint32 cluster, int write, int user, uint64 data, uint off, uint n)
 {
     if (off + n > fat.byts_per_clus)
         panic("offset out of range");
     uint tot, m;
     struct buf *bp;
+    //利用簇和偏移获得对应的扇区号
     uint sec = first_sec_of_clus(cluster) + off / fat.bpb.byts_per_sec;
     off = off % fat.bpb.byts_per_sec;
 

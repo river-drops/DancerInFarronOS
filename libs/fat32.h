@@ -26,24 +26,16 @@
 struct dirent {
     char  filename[FAT32_MAX_FILENAME + 1];
     uint8   attribute;
-    // uint8   create_time_tenth;
-    // uint16  create_time;
-    // uint16  create_date;
-    // uint16  last_access_date;
     uint32  first_clus;
-    // uint16  last_write_time;
-    // uint16  last_write_date;
     uint32  file_size;
-
     uint32  cur_clus;
     uint    clus_cnt;
-
     /* for OS */
     uint8   dev;
     uint8   dirty;
     short   valid;
     int     ref;
-    uint32  off;            // offset in the parent dir entry, for writing convenience
+    uint32  off;            // 在根目录中的偏移，便于写入
     struct dirent *parent;  // because FAT32 doesn't have such thing like inum, use this for cache trick
     struct dirent *next;
     struct dirent *prev;
