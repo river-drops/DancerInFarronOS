@@ -250,7 +250,7 @@ static uint32 alloc_clus(uint8 dev)
 
     //遍历fat表
     for (uint32 i = 0; i < fat.bpb.fat_sz; i++, sec++) {
-        //读取dev中的sec保存到一个buffer中并返回到bn
+        //读取dev中的sec保存到一个buffer中并返回到b
         b = bread(dev, sec);
         //遍历buffer中所有表项
         for (uint32 j = 0; j < ent_per_sec; j++) {
@@ -275,7 +275,7 @@ static void free_clus(uint32 cluster)
     write_fat(cluster, 0);
 }
 
-//对簇进行读写
+//对簇进行读写,从off开始的n个字节
 static uint rw_clus(uint32 cluster, int write, int user, uint64 data, uint off, uint n)
 {
     if (off + n > fat.byts_per_clus)
@@ -288,18 +288,25 @@ static uint rw_clus(uint32 cluster, int write, int user, uint64 data, uint off, 
 
     int bad = 0;
     for (tot = 0; tot < n; tot += m, off += m, data += m, sec++) {
+        // 读取sec内的内容
         bp = bread(0, sec);
+        // m为剩余大小
         m = BSIZE - off % BSIZE;
+        
         if (n - tot < m) {
             m = n - tot;
         }
         if (write) {
+            // 写入操作
+            // either_copyin根据第二个参数判断从用户地址复制还是从内核地址复制到bp->data
             if ((bad = either_copyin(bp->data + (off % BSIZE), user, data, m)) != -1) {
                 bwrite(bp);
             }
         } else {
+            // 复制到第二个参数，源是第三个参数
             bad = either_copyout(user, data, bp->data + (off % BSIZE), m);
         }
+        // 释放bp的一个引用
         brelse(bp);
         if (bad == -1) {
             break;
@@ -310,19 +317,24 @@ static uint rw_clus(uint32 cluster, int write, int user, uint64 data, uint off, 
 
 /**
  * for the given entry, relocate the cur_clus field based on the off
- * @param   entry       modify its cur_clus field
- * @param   off         the offset from the beginning of the relative file
- * @param   alloc       whether alloc new cluster when meeting end of FAT chains
- * @return              the offset from the new cur_clus
+ * @param   entry       modify its cur_clus field ，修改该entry指向的cur_clus
+ * @param   off         the offset from the beginning of the relative file，从相关文件开始的偏移
+ * @param   alloc       whether alloc new cluster when meeting end of FAT chains，当遇到FAT链尾是否分配一个新簇
+ * @return              the offset from the new cur_clus 
  */
+// 给定entry，根据偏移重新分配簇，返回新的当前簇
 static int reloc_clus(struct dirent *entry, uint off, int alloc)
 {
+    // 计算出偏移处簇的数量
     int clus_num = off / fat.byts_per_clus;
+    // 如果大于，则一直分配到偏移
     while (clus_num > entry->clus_cnt) {
+        // 根据当前簇号返回下一个簇号clus
         int clus = read_fat(entry->cur_clus);
         if (clus >= FAT32_EOC) {
             if (alloc) {
                 clus = alloc_clus(entry->dev);
+                //分配完新簇后写入到当前cur_clus
                 write_fat(entry->cur_clus, clus);
             } else {
                 entry->cur_clus = entry->first_clus;
@@ -330,10 +342,13 @@ static int reloc_clus(struct dirent *entry, uint off, int alloc)
                 return -1;
             }
         }
+        // 修改指向
         entry->cur_clus = clus;
         entry->clus_cnt++;
     }
+    // 如果小于
     if (clus_num < entry->clus_cnt) {
+        // 重新从第一个开始分配至偏移处
         entry->cur_clus = entry->first_clus;
         entry->clus_cnt = 0;
         while (entry->clus_cnt < clus_num) {
@@ -349,22 +364,31 @@ static int reloc_clus(struct dirent *entry, uint off, int alloc)
 
 /* like the original readi, but "reade" is odd, let alone "writee" */
 // Caller must hold entry->lock.
+// 向entry里读数据
+// 给定entry，将off起始的n个字节读取到dst处
 int eread(struct dirent *entry, int user_dst, uint64 dst, uint off, uint n)
 {
     if (off > entry->file_size || off + n < off || (entry->attribute & ATTR_DIRECTORY)) {
         return 0;
     }
+    // 如果大于文件大小，则一直到文件末尾
     if (off + n > entry->file_size) {
         n = entry->file_size - off;
     }
 
     uint tot, m;
     for (tot = 0; entry->cur_clus < FAT32_EOC && tot < n; tot += m, off += m, dst += m) {
+        // 第三个参数为0，如果到末尾不重新分配新簇
         reloc_clus(entry, off, 0);
+        // m为当前簇剩余的字节数
         m = fat.byts_per_clus - off % fat.byts_per_clus;
+
         if (n - tot < m) {
             m = n - tot;
         }
+        // 更新m，从off开始的m个字节
+        // 对entry->cur_clus进行读，第二个参数是write，0为读，第三个参数判断是从用户地址还是内核地址
+        // 第四个参数dst读完的数据放入的data，第六个参数是偏移量，m是从偏移量开始的m个字节
         if (rw_clus(entry->cur_clus, 0, user_dst, dst, off % fat.byts_per_clus, m) != m) {
             break;
         }
@@ -373,12 +397,15 @@ int eread(struct dirent *entry, int user_dst, uint64 dst, uint off, uint n)
 }
 
 // Caller must hold entry->lock.
+// 向entry里写数据
+// 给定entry，将off起始的n个字节写到dst处
 int ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n)
 {
     if (off > entry->file_size || off + n < off || (uint64)off + n > 0xffffffff
         || (entry->attribute & ATTR_READ_ONLY)) {
         return -1;
     }
+    // 如果文件大小为0，则新分配一个簇
     if (entry->first_clus == 0) {   // so file_size if 0 too, which requests off == 0
         entry->cur_clus = entry->first_clus = alloc_clus(entry->dev);
         entry->clus_cnt = 0;
@@ -391,11 +418,13 @@ int ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n)
         if (n - tot < m) {
             m = n - tot;
         }
+        // 从src读取数据，偏移off+m个字节的数据到entry->cur_clus
         if (rw_clus(entry->cur_clus, 1, user_src, src, off % fat.byts_per_clus, m) != m) {
             break;
         }
     }
     if(n > 0) {
+        // 更新文件大小
         if(off > entry->file_size) {
             entry->file_size = off;
             entry->dirty = 1;
@@ -409,12 +438,18 @@ int ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n)
 // which forms a linked list from the final file to the root. Thus, we use the "parent" pointer 
 // to recognize whether an entry with the "name" as given is really the file we want in the right path.
 // Should never get root by eget, it's easy to understand.
+
+// 返回一个dirent结构
 static struct dirent *eget(struct dirent *parent, char *name)
 {
     struct dirent *ep;
     acquire(&ecache.lock);
+    // 如果有name参数，检查ecache
     if (name) {
-        for (ep = root.next; ep != &root; ep = ep->next) {          // LRU algo
+        // 双向循环链表，检查回来退出循环，从前往后找最常用的
+        for (ep = root.next; ep != &root; ep = ep->next) {          // LRU 算法
+            // 如果有效，且他的父节点相等，且文件名相等
+            // 则该文件结构引用+1，父亲引用如果没分配也+1
             if (ep->valid == 1 && ep->parent == parent
                 && strncmp(ep->filename, name, FAT32_MAX_FILENAME) == 0) {
                 if (ep->ref++ == 0) {
@@ -422,11 +457,13 @@ static struct dirent *eget(struct dirent *parent, char *name)
                 }
                 release(&ecache.lock);
                 // edup(ep->parent);
+                // 返回该文件结构dirent
                 return ep;
             }
         }
     }
-    for (ep = root.prev; ep != &root; ep = ep->prev) {              // LRU algo
+    // 如果不给name，直接从后向前找到最少使用的一个dirent项进行返回
+    for (ep = root.prev; ep != &root; ep = ep->prev) {              // LRU 算法
         if (ep->ref == 0) {
             ep->ref = 1;
             ep->dev = parent->dev;
@@ -442,18 +479,23 @@ static struct dirent *eget(struct dirent *parent, char *name)
 }
 
 // trim ' ' in the head and tail, '.' in head, and test legality
+// 格式化name
 char *formatname(char *name)
 {
     static char illegal[] = { '\"', '*', '/', ':', '<', '>', '?', '\\', '|', 0 };
     char *p;
+    // 如果开头是空格或.则跳过
     while (*name == ' ' || *name == '.') { name++; }
+
     for (p = name; *p; p++) {
         char c = *p;
+        //如果有非法字符直接返回
         if (c < 0x20 || strchr(illegal, c)) {
             return 0;
         }
     }
     while (p-- > name) {
+        //去掉name后面的空格符号
         if (*p != ' ') {
             p[1] = '\0';
             break;
@@ -462,6 +504,7 @@ char *formatname(char *name)
     return name;
 }
 
+// 输入name，生成shortname
 static void generate_shortname(char *shortname, char *name)
 {
     static char illegal[] = { '+', ',', ';', '=', '[', ']', 0 };   // these are legal in l-n-e but not s-n-e
@@ -518,6 +561,7 @@ uint8 cal_checksum(uchar* shortname)
  * @param   ep          entry to write on disk
  * @param   off         offset int the dp, should be calculated via dirlookup before calling this
  */
+// 类似于imake
 void emake(struct dirent *dp, struct dirent *ep, uint off)
 {
     if (!(dp->attribute & ATTR_DIRECTORY))
@@ -599,6 +643,7 @@ struct dirent *ealloc(struct dirent *dp, char *name, int attr)
     if ((ep = dirlookup(dp, name, &off)) != 0) {      // entry exists
         return ep;
     }
+    //如果不存在,获取一个dirent
     ep = eget(dp, name);
     elock(ep);
     ep->attribute = attr;
@@ -609,6 +654,7 @@ struct dirent *ealloc(struct dirent *dp, char *name, int attr)
     ep->clus_cnt = 0;
     ep->cur_clus = 0;
     ep->dirty = 0;
+    //复制文件名
     strncpy(ep->filename, name, FAT32_MAX_FILENAME);
     ep->filename[FAT32_MAX_FILENAME] = '\0';
     if (attr == ATTR_DIRECTORY) {    // generate "." and ".." for ep
@@ -625,6 +671,7 @@ struct dirent *ealloc(struct dirent *dp, char *name, int attr)
     return ep;
 }
 
+// entry项引用次数+1
 struct dirent *edup(struct dirent *entry)
 {
     if (entry != 0) {
@@ -637,6 +684,7 @@ struct dirent *edup(struct dirent *entry)
 
 // Only update filesize and first cluster in this case.
 // caller must hold entry->parent->lock
+// 更新entry，只更新文件size和第一簇号
 void eupdate(struct dirent *entry)
 {
     if (!entry->dirty || entry->valid != 1) { return; }
@@ -657,6 +705,7 @@ void eupdate(struct dirent *entry)
 // caller must hold entry->lock
 // caller must hold entry->parent->lock
 // remove the entry in its parent directory
+// 将此entry从目录中移除
 void eremove(struct dirent *entry)
 {
     if (entry->valid != 1) { return; }
@@ -676,6 +725,7 @@ void eremove(struct dirent *entry)
 
 // truncate a file
 // caller must hold entry->lock
+// 截断文件
 void etrunc(struct dirent *entry)
 {
     for (uint32 clus = entry->first_clus; clus >= 2 && clus < FAT32_EOC; ) {
@@ -688,6 +738,7 @@ void etrunc(struct dirent *entry)
     entry->dirty = 1;
 }
 
+// 上锁
 void elock(struct dirent *entry)
 {
     if (entry == 0 || entry->ref < 1)
@@ -695,12 +746,14 @@ void elock(struct dirent *entry)
     acquiresleep(&entry->lock);
 }
 
+// 解锁
 void eunlock(struct dirent *entry)
 {
     if (entry == 0 || !holdingsleep(&entry->lock) || entry->ref < 1)
         panic("eunlock");
     releasesleep(&entry->lock);
 }
+
 
 void eput(struct dirent *entry)
 {
@@ -740,6 +793,8 @@ void eput(struct dirent *entry)
     release(&ecache.lock);
 }
 
+
+// 把de中的内容复制到st中
 void estat(struct dirent *de, struct stat *st)
 {
     strncpy(st->name, de->filename, STAT_MAX_NAME);

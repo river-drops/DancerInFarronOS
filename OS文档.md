@@ -733,7 +733,7 @@ static uint32 alloc_clus(uint8 dev)
 }
 ~~~
 
-
+更多具体的细节见.c文件的中文注释。
 
 
 

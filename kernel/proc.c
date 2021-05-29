@@ -723,6 +723,7 @@ kill(int pid)
 // Copy to either a user address, or kernel address,
 // depending on usr_dst.
 // Returns 0 on success, -1 on error.
+// 复制到用户地址或内核地址，取决于usr_src
 int
 either_copyout(int user_dst, uint64 dst, void *src, uint64 len)
 {
@@ -739,6 +740,9 @@ either_copyout(int user_dst, uint64 dst, void *src, uint64 len)
 // Copy from either a user address, or kernel address,
 // depending on usr_src.
 // Returns 0 on success, -1 on error.
+// 从用户地址或者内核地址复制，取决于usr_src
+// usr_src==1，从用户地址复制
+// usr_src==0，从内核地址复制
 int
 either_copyin(void *dst, int user_src, uint64 src, uint64 len)
 {

@@ -1,5 +1,5 @@
 // Sleeping locks
-
+// 自旋锁的实现
 
 #include "../libs/types.h"
 #include "../libs/riscv.h"
