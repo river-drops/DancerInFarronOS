@@ -18,7 +18,7 @@
 #define SYS_kill         6
 #define SYS_exec         7
 
-#define SYS_fstat        8
+#define SYS_fstat        80
 
 
 #define SYS_chdir        49
@@ -27,8 +27,10 @@
 #define SYS_dup         23
 
 
-#define SYS_getpid      11
-#define SYS_sbrk        12
+#define SYS_getpid      172
+
+#define SYS_sbrk        214
+
 #define SYS_sleep       13
 #define SYS_uptime      14
 
@@ -41,7 +43,7 @@
 
 
 //---
-#define SYS_remove      51
+#define SYS_remove      21
 //---
 #define SYS_trace       18
 #define SYS_sysinfo     19
@@ -53,7 +55,7 @@
 
 #define SYS_test_proc   22
 //---
-#define SYS_dev         50
+#define SYS_dev         25
 //---
 #define SYS_readdir     24
 
