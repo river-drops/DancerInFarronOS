@@ -2,14 +2,15 @@
 #define __SYSNUM_H
 
 // System call numbers
-#define SYS_fork         1
+#define SYS_fork         220  //clone
 
 
 #define SYS_exit         93
 
 
-#define SYS_wait         3
-#define SYS_pipe         4
+#define SYS_wait         260
+
+#define SYS_pipe         59
 
 
 #define SYS_read         63
@@ -32,7 +33,8 @@
 #define SYS_sbrk        214
 
 #define SYS_sleep       13
-#define SYS_uptime      14
+
+#define SYS_uptime      169
 
 
 #define SYS_open        56
@@ -47,7 +49,8 @@
 //---
 #define SYS_trace       18
 #define SYS_sysinfo     19
-#define SYS_mkdir       20
+
+#define SYS_mkdir       34
 
 
 #define SYS_close       57
