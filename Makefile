@@ -239,12 +239,39 @@ fs: $(UPROGS)
 
 
 UTEST:=\
+	$(TE)/brk\
 	$(TE)/chdir\
+	$(TE)/clone\
 	$(TE)/close\
 	$(TE)/dup\
+	$(TE)/dup2\
+	$(TE)/execve\
+	$(TE)/exit\
+	$(TE)/fork\
+	$(TE)/fstat\
 	$(TE)/getcwd\
+	$(TE)/getdents\
+	$(TE)/getpid\
+	$(TE)/getppid\
+	$(TE)/gettimeofday\
+	$(TE)/mkdir_\
+	$(TE)/mmap\
+	$(TE)/mount\
+	$(TE)/munmap\
+	$(TE)/open\
+	$(TE)/openat\
+	$(TE)/pipe\
 	$(TE)/read\
+	$(TE)/sleep\
+	$(TE)/test_echo\
+	$(TE)/times\
+	$(TE)/umount\
+	$(TE)/uname\
+	$(TE)/unlink\
+	$(TE)/wait\
+	$(TE)/waitpid\
 	$(TE)/write\
+	$(TE)/yield\
 
 loadtest: $(UTEST)
 	@sudo mount fs.img $(dst)
