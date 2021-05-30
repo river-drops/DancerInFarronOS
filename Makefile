@@ -127,9 +127,18 @@ image = $T/kernel.bin
 k210 = $T/k210.bin
 k210-serialport := /dev/ttyUSB0
 
+ceshi = ./k210.bin
+
 ifndef CPUS
 CPUS := 2
 endif
+
+# all
+all: build
+	@$(OBJCOPY) $T/kernel --strip-all -O binary $(image)
+	@$(OBJCOPY) $(RUSTSBI) --strip-all -O binary $(ceshi)
+	@dd if=$(image) of=$(ceshi) bs=128k seek=1
+
 
 QEMUOPTS = -machine virt -kernel $T/kernel -m 8M -nographic
 
@@ -297,5 +306,6 @@ clean:
 	$U/initcode $U/initcode.out \
 	$K/kernel \
 	.gdbinit \
+	./k210.bin\
 	$U/usys.S \
 	$(UPROGS)
