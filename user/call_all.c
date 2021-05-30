@@ -55,7 +55,7 @@ int main(){
 
 
     char* argv[]={"",0};
-    //char* argv1[]={"sh",0};
+    char* argv1[]={"sh",0};
     int i=0;
     for(i=0;i<syscall_nums;++i){
         argv[0]=syscall_name[i];
@@ -68,13 +68,12 @@ int main(){
             sleep(10);
         }
     }
-    exit(0);
-    // int pid=fork();
-    // if(pid==0){
-    //     exec(argv1[0],argv1);
-    //     printf("init: exec sh failed\n");
-    //     exit(-1);
-    // }
-    //while(1);
+    int pid=fork();
+    if(pid==0){
+        exec(argv1[0],argv1);
+        printf("init: exec sh failed\n");
+        exit(-1);
+    }
+    while(1);
 
 }

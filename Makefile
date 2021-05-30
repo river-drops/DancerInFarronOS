@@ -273,7 +273,7 @@ dst=/mnt
 # @sudo cp $U/_sh $(dst)/sh
 # Make fs image
 
-# before edit, bs=512 ,count=512
+# before edit, bs=512k ,count=512
 fs: $(UPROGS)
 	@if [ ! -f "fs.img" ]; then \
 		echo "making fs image..."; \
