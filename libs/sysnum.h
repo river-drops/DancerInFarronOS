@@ -17,6 +17,8 @@
 
 
 #define SYS_kill         6
+
+//execve 221
 #define SYS_exec         7
 
 #define SYS_fstat        80

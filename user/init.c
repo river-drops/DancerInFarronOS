@@ -20,6 +20,8 @@ main(void)
   dev(O_RDWR, CONSOLE, 0);
   dup(0);  // stdout
   dup(0);  // stderr
+  
+
 
   for(;;){
     printf("init: starting sh\n");
@@ -33,7 +35,6 @@ main(void)
       printf("init: exec sh failed\n");
       exit(1);
     }
-
     for(;;){
       // this call to wait() returns if the shell exits,
       // or if a parentless process exits.
