@@ -32,8 +32,8 @@ main(void)
     }
     if(pid == 0){
       exec("call_all",argv);
-      while(1){};
-      exec("sh", argv);
+      //while(1){};
+      //exec("sh", argv);
       printf("init: exec sh failed\n");
       exit(1);
     }
