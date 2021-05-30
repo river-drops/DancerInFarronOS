@@ -9,14 +9,14 @@
 
 
 int main(){
-    close(0);
-    close(1);
-    close(2);
-    dev(O_RDWR, CONSOLE, 0);
-    dev(O_RDWR, CONSOLE, 0);
-    dev(O_RDWR, CONSOLE, 0);
-    dup(0);  // stdout
-    dup(0);  // stderr
+    // close(0);
+    // close(1);
+    // close(2);
+    // dev(O_RDWR, CONSOLE, 0);
+    // dev(O_RDWR, CONSOLE, 0);
+    // dev(O_RDWR, CONSOLE, 0);
+    // dup(0);  // stdout
+    // dup(0);  // stderr
 
     char* syscall_name[]={
         "brk",
@@ -55,25 +55,25 @@ int main(){
 
 
     char* argv[]={"",0};
-    char* argv1[]={"sh",0};
+    //char* argv1[]={"sh",0};
     int i=0;
     for(i=0;i<syscall_nums;++i){
         argv[0]=syscall_name[i];
         int pid=fork();
         if(pid==0){
             exec(argv[0],argv);
-            printf("init: exec %s failed\n",argv[0]);
+            //printf("init: exec %s failed\n",argv[0]);
             exit(-1);
         }else{
             sleep(10);
         }
     }
-    int pid=fork();
-    if(pid==0){
-        exec(argv1[0],argv1);
-        printf("init: exec sh failed\n");
-        exit(-1);
-    }
-    while(1);
+    // int pid=fork();
+    // if(pid==0){
+    //     exec(argv1[0],argv1);
+    //     printf("init: exec sh failed\n");
+    //     exit(-1);
+    // }
+    while(1){};
 
 }
