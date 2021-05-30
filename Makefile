@@ -107,7 +107,7 @@ $T/kernel: $(OBJS) $(linker) $U/initcode
 	@$(OBJDUMP) -t $T/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $T/kernel.sym
   
 # tianjia
-build: $T/kernel userprogs loadtest
+build: $T/kernel userprogs
 
 # Compile RustSBI
 RUSTSBI:
@@ -138,7 +138,9 @@ all: build
 	@$(OBJCOPY) $T/kernel --strip-all -O binary $(image)
 	@$(OBJCOPY) $(RUSTSBI) --strip-all -O binary $(ceshi)
 	@dd if=$(image) of=$(ceshi) bs=128k seek=1
-
+# @$(OBJDUMP) -D -b binary -m riscv $(ceshi) > $T/k210.asm
+# @sudo chmod 777 $(k210-serialport)
+# @python3 ./tools/kflash.py -p $(k210-serialport) -b 1500000 -t $(ceshi)
 
 QEMUOPTS = -machine virt -kernel $T/kernel -m 8M -nographic
 
@@ -230,24 +232,6 @@ UPROGS=\
 
 userprogs: $(UPROGS)
 
-dst=/mnt
-
-# @sudo cp $U/_init $(dst)/init
-# @sudo cp $U/_sh $(dst)/sh
-# Make fs image
-fs: $(UPROGS)
-	@if [ ! -f "fs.img" ]; then \
-		echo "making fs image..."; \
-		dd if=/dev/zero of=fs.img bs=512k count=512; \
-		mkfs.vfat -F 32 fs.img; fi
-	@sudo mount fs.img $(dst)
-	@if [ ! -d "$(dst)/bin" ]; then sudo mkdir $(dst)/bin; fi
-	@for file in $$( ls $U/_* ); do \
-		sudo cp $$file $(dst)/$${file#$U/_};\
-		sudo cp $$file $(dst)/bin/$${file#$U/_}; done
-	@sudo umount $(dst)
-
-
 UTEST:=\
 	$(TE)/brk\
 	$(TE)/chdir\
@@ -283,12 +267,29 @@ UTEST:=\
 	$(TE)/write\
 	$(TE)/yield\
 
-loadtest: $(UTEST)
+dst=/mnt
+
+# @sudo cp $U/_init $(dst)/init
+# @sudo cp $U/_sh $(dst)/sh
+# Make fs image
+
+# before edit, bs=512 ,count=512
+fs: $(UPROGS)
+	@if [ ! -f "fs.img" ]; then \
+		echo "making fs image..."; \
+		dd if=/dev/zero of=fs.img bs=512k count=512; \
+		mkfs.vfat -F 32 fs.img; fi
 	@sudo mount fs.img $(dst)
-	@for file in $$( ls $(TE)/* ); do \
-		sudo cp $$file $(dst)/$${file#$(TE)/};\
-		sudo cp $$file $(dst)/bin/$${file#$(TE)/}; done
+	@if [ ! -d "$(dst)/bin" ]; then sudo mkdir $(dst)/bin; fi
+	@for file in $$( ls $U/_* ); do \
+		sudo cp $$file $(dst)/$${file#$U/_};\
+		sudo cp $$file $(dst)/bin/$${file#$U/_}; done
+	@-for file in $$( ls $(TE)/* ); do \
+		sudo cp -r $$file $(dst)/$${file#$(TE)/};\
+		sudo cp -r $$file $(dst)/bin/$${file#$(TE)/}; done
 	@sudo umount $(dst)
+
+
 
 
 # Write sdcard
@@ -306,6 +307,6 @@ clean:
 	$U/initcode $U/initcode.out \
 	$K/kernel \
 	.gdbinit \
-	./k210.bin\
+	k210.bin\
 	$U/usys.S \
 	$(UPROGS)

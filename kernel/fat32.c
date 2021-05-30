@@ -81,8 +81,11 @@ int fat32_init()
     #endif
     //去高速缓存块中获取dev=0的0号簇（即bpb，存放着文件系统的参数）
     struct buf *b = bread(0, 0);
+
+
     if (strncmp((char const*)(b->data + 82), "FAT32", 5))
         panic("not FAT32 volume");
+
     // fat.bpb.byts_per_sec = *(uint16 *)(b->data + 11);
     // 给bpb（Bios Parameter Block）赋值
     memmove(&fat.bpb.byts_per_sec, b->data + 11, 2);            // avoid misaligned load on k210
