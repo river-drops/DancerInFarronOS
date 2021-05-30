@@ -19,41 +19,41 @@ int main(){
     // dup(0);  // stderr
 
     char* syscall_name[]={
-        "brk",
-        "chdir",
-        //"clone",
-        "dup",
-        "dup2",
-        "execve",
-        "exit",
-        "fork",
-        "fstat",
-        "getcwd",
-        "getdents",
-        "getpid",
-        "getppid",
-        "gettimeofday",
-        "mkdir_",
-        "mmap",
-        "mount",
-        "munmap",
-        "open",
-        "openat",
-        "pipe",
-        "read",
-        "sleep",
-        "test_echo",
-        "times",
-        "umount",
-        "uname",
-        "unlinke",
-        "wait",
-        "waitpid",
-        "write",
-        "yield"
+        "/brk",
+        "/chdir",
+        //"/clone",
+        "/dup",
+        "/dup2",
+        "/execve",
+        "/exit",
+        "/fork",
+        "/fstat",
+        "/getcwd",
+        "/getdents",
+        "/getpid",
+        "/getppid",
+        "/gettimeofday",
+        "/mkdir_",
+        "/mmap",
+        "/mount",
+        "/munmap",
+        "/open",
+        "/openat",
+        "/pipe",
+        "/read",
+        "/sleep",
+        "/test_echo",
+        "/times",
+        "/umount",
+        "/uname",
+        "/unlinke",
+        "/wait",
+        "/waitpid",
+        "/write",
+        "/yield"
     };
 
-
+    int wpid;
     char* argv[]={"",0};
     //char* argv1[]={"sh",0};
     int i=0;
@@ -62,11 +62,23 @@ int main(){
         int pid=fork();
         if(pid==0){
             exec(argv[0],argv);
-            //printf("init: exec %s failed\n",argv[0]);
-            exit(-1);
-        }else{
-            sleep(10);
+            return 0;
         }
+        for(;;){
+            // this call to wait() returns if the shell exits,
+            // or if a parentless process exits.
+            wpid = wait((int *) 0);
+            if(wpid == pid){
+                // the shell exited; restart it
+                break;
+            } else if(wpid < 0){
+                //printf("init: wait returned an error\n");
+                exit(1);
+            } else {
+                // it was a parentless process; do nothing.
+            }
+        }
+
     }
     // int pid=fork();
     // if(pid==0){
