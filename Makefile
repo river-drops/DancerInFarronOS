@@ -106,7 +106,6 @@ $T/kernel: $(OBJS) $(linker) $U/initcode
 	@$(OBJDUMP) -S $T/kernel > $T/kernel.asm
 	@$(OBJDUMP) -t $T/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $T/kernel.sym
   
-# tianjia
 build: $T/kernel userprogs
 
 # Compile RustSBI
@@ -127,7 +126,6 @@ image = $T/kernel.bin
 k210 = $T/k210.bin
 k210-serialport := /dev/ttyUSB0
 
-ceshi = ./k210.bin
 
 ifndef CPUS
 CPUS := 2
@@ -136,11 +134,12 @@ endif
 # all
 all: build
 	@$(OBJCOPY) $T/kernel --strip-all -O binary $(image)
-	@$(OBJCOPY) $(RUSTSBI) --strip-all -O binary $(ceshi)
-	@dd if=$(image) of=$(ceshi) bs=128k seek=1
-# @$(OBJDUMP) -D -b binary -m riscv $(ceshi) > $T/k210.asm
+	@$(OBJCOPY) $(RUSTSBI) --strip-all -O binary $(k210)
+	@dd if=$(image) of=$(k210) bs=128k seek=1
+	cp $(k210) ./k210.bin
+# @$(OBJDUMP) -D -b binary -m riscv $(k210) > $T/k210.asm
 # @sudo chmod 777 $(k210-serialport)
-# @python3 ./tools/kflash.py -p $(k210-serialport) -b 1500000 -t $(ceshi)
+# @python3 ./tools/kflash.py -p $(k210-serialport) -b 1500000 -t $(k210)
 
 QEMUOPTS = -machine virt -kernel $T/kernel -m 8M -nographic
 
